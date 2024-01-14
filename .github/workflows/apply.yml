@@ -34,6 +34,7 @@ jobs:
           aws configure set aws_access_key_id ${{secrets.AWS_ACCESS_KEY_ID}}
           aws configure set aws_secret_access_key ${{secrets.AWS_SECRET_KEY_ID}}
           aws configure set default.region ${{secrets.AWS_REGION}}
+          ssh-keygen -t rsa -b 4096 -f $HOME/.ssh/id_rsa -N ""
           terraform init
           terraform apply --auto-approve 
           chmod +x copy_tfstate.sh 

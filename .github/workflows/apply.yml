@@ -7,6 +7,8 @@ on:
 jobs:
   Build_Project:
     runs-on: ubuntu-latest
+    outputs:
+      artifacts: ${{needs.Build_Project.outputs.artifacts}}
     steps:
       - name: Checkout code
         uses: actions/checkout@v2
@@ -40,7 +42,10 @@ jobs:
           chmod +x copy_tfstate.sh 
           ./copy_tfstate.sh
 
-  
+    outputs:
+      artifacts: ${{ steps.Build.outputs.artifacts }}
+
+
   Configure_Ansible:
     runs-on: ubuntu-latest
     needs: Build_Project
@@ -59,14 +64,16 @@ jobs:
           pip install ansible
           pip install boto3
           
-
       - name: Verify Ansible Installation
         run: ansible --version
-      
-      
+
+      - name: Download SSH Key
+        uses: actions/download-artifact@v2
+        with:
+          name: ${{ needs.Build_Project.outputs.artifacts }}
+
       - name: Exexcuting update_hosts.sh
         run: |
-
             cd $GITHUB_WORKSPACE/project
             aws configure set aws_access_key_id ${{secrets.AWS_ACCESS_KEY_ID}}
             aws configure set aws_secret_access_key ${{secrets.AWS_SECRET_KEY_ID}}
@@ -77,9 +84,6 @@ jobs:
             ./restore_tfstate.sh
             ./update_hosts.sh
             cd ../ansible
-            chmod 600 ~/.ssh/id_rsa
+            chmod 600 id_rsa
             ANSIBLE_HOST_KEY_CHECKING=False ansible-playbook -i hosts playbook.yml
             echo "DONE"
-
-  
-

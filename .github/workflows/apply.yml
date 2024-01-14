@@ -1,0 +1,84 @@
+name: Apply Terraform INFRA then Apply Ansible
+
+on:
+  push:
+    branches: [main]
+
+jobs:
+  Build_Project:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v2
+
+      - name: Install dependencies
+        env:
+          AWS_ACCESS_KEY_ID: ${{secrets.AWS_ACCESS_KEY_ID}}
+          AWS_SECRET_ACCESS_KEY: ${{secrets.AWS_SECRET_KEY_ID}}
+          REGION: ${{secrets.AWS_REGION}}
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y unzip
+          wget https://releases.hashicorp.com/terraform/1.0.9/terraform_1.0.9_linux_amd64.zip
+          unzip terraform_1.0.9_linux_amd64.zip
+          sudo mv terraform /usr/local/bin/
+          echo "DONE"
+
+      - name: Build
+        run: terraform version
+
+      - name: Apply
+        run: |
+          cd $GITHUB_WORKSPACE/project
+          sudo apt install awscli
+          aws configure set aws_access_key_id ${{secrets.AWS_ACCESS_KEY_ID}}
+          aws configure set aws_secret_access_key ${{secrets.AWS_SECRET_KEY_ID}}
+          aws configure set default.region ${{secrets.AWS_REGION}}
+          terraform init
+          terraform apply --auto-approve 
+          chmod +x copy_tfstate.sh 
+          ./copy_tfstate.sh
+
+  
+  Configure_Ansible:
+    runs-on: ubuntu-latest
+    needs: Build_Project
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v2
+
+      - name: Set up Python
+        uses: actions/setup-python@v2
+        with:
+          python-version: '3.10' # Use the desired Python version
+
+      - name: Install Ansible
+        run: |
+          python3 -m pip install --upgrade pip
+          pip install ansible
+          pip install boto3
+          
+
+      - name: Verify Ansible Installation
+        run: ansible --version
+      
+      
+      - name: Exexcuting update_hosts.sh
+        run: |
+
+            cd $GITHUB_WORKSPACE/project
+            aws configure set aws_access_key_id ${{secrets.AWS_ACCESS_KEY_ID}}
+            aws configure set aws_secret_access_key ${{secrets.AWS_SECRET_KEY_ID}}
+            aws configure set default.region ${{secrets.AWS_REGION}}
+            chmod +x update_hosts.sh && chmod +x restore_tfstate.sh
+            sudo apt install dos2unix 
+            dos2unix update_hosts.sh
+            ./restore_tfstate.sh
+            ./update_hosts.sh
+            cd ../ansible
+            chmod 600 ~/.ssh/id_rsa
+            ANSIBLE_HOST_KEY_CHECKING=False ansible-playbook -i hosts playbook.yml
+            echo "DONE"
+
+  
+
